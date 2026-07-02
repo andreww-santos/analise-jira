@@ -314,7 +314,18 @@ def collect(start: date, end_excl: date) -> dict:
         qa_forwarded[who] = qa_forwarded.get(who, 0) + 1
     m["qa_forwarded"] = qa_forwarded
     m["qa_forwarded_total"] = len({key for _who, key in qa_pairs})
+
+    # Media de entregas por pessoa na semana (dev = vazao; qa = demandas liberadas).
+    # Ignora o bucket "Sem responsavel" no calculo dos devs.
+    m["avg_per_dev"] = mean_per_person(by_assignee, ignore={"Sem responsavel"})
+    m["avg_per_qa"] = mean_per_person(qa_forwarded)
     return m
+
+
+def mean_per_person(counts: dict, ignore: set = frozenset()) -> float:
+    """Media de itens por pessoa, ignorando buckets em `ignore`."""
+    vals = [v for k, v in counts.items() if k not in ignore]
+    return round(sum(vals) / len(vals), 1) if vals else 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -384,8 +395,11 @@ def build_payload(m: dict, label: str) -> dict:
             "inline": False,
         },
         {
-            "name": "\U0001F3C6 Vazao por pessoa (top 5)",
-            "value": fmt_top(m["throughput_by_assignee"]),
+            "name": "\U0001F3C6 Vazao por dev (top 5)",
+            "value": (
+                fmt_top(m["throughput_by_assignee"])
+                + f"\n_Média por dev: **{m['avg_per_dev']}**_"
+            ),
             "inline": False,
         },
         {
@@ -393,7 +407,10 @@ def build_payload(m: dict, label: str) -> dict:
                 "\U0001F9D1‍\U0001F52C QAs — demandas liberadas "
                 f"({m['qa_forwarded_total']}) [release / AG. VERSÃO]"
             ),
-            "value": fmt_top(m["qa_forwarded"]),
+            "value": (
+                fmt_top(m["qa_forwarded"])
+                + f"\n_Média por QA: **{m['avg_per_qa']}**_"
+            ),
             "inline": False,
         },
     ]

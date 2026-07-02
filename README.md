@@ -9,7 +9,8 @@ consulta a API do Jira Cloud, calcula os principais indicadores da **semana ante
 - ✅ **Issues concluídas** na semana
 - 🐛 **Bugs criados vs. resolvidos** na semana (com saldo e tendência)
 - 📋 **Backlog atual de bugs em aberto**, quebrado por prioridade
-- 🏆 **Vazão (throughput) por pessoa** (top 5)
+- 🏆 **Vazão (throughput) por dev** (top 5) + **média de entregas por dev**
+- 🧑‍🔬 **Média de entregas por QA** na semana
 - ⏱️ **Tempo médio de resolução** das issues resolvidas na semana
 - 🧪 **Subtasks abertas** (foto atual)
 - 🧑‍🔬 **QAs — demandas liberadas na semana**: quem moveu issues para os status
