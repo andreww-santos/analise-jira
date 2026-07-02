@@ -32,4 +32,6 @@ jobs:
           JIRA_EXTRA_JQL: ${{ secrets.JIRA_EXTRA_JQL }}
           # Tipo(s) de issue de erro/bug (padrao "Erro" se o secret nao existir):
           JIRA_BUG_TYPES: ${{ secrets.JIRA_BUG_TYPES }}
+          # Status de QA (padrao "release,AG. VERSÃO" se o secret nao existir):
+          JIRA_QA_STATUSES: ${{ secrets.JIRA_QA_STATUSES }}
         run: python jira_discord_report.py

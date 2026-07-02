@@ -44,6 +44,10 @@ TIMEZONE_LABEL = os.environ.get("TIMEZONE_LABEL", "America/Sao_Paulo")
 # Padrao "Erro" (nomenclatura usada nos projetos da Bruning).
 JIRA_BUG_TYPES = os.environ.get("JIRA_BUG_TYPES", "").strip() or "Erro"
 
+# Status para os quais o QA move a demanda apos testar ("passar pra frente").
+# Padrao: "release" (web) e "AG. VERSÃO" (Desktop). Separados por virgula.
+JIRA_QA_STATUSES = os.environ.get("JIRA_QA_STATUSES", "").strip() or "release,AG. VERSÃO"
+
 TIMEOUT = 30
 
 
@@ -164,6 +168,29 @@ def search_issues(jql: str, fields: list, apply_scope: bool = True) -> list:
     return issues
 
 
+def get_changelog(key: str) -> list:
+    """Retorna o historico (changelog) completo de uma issue, paginado."""
+    histories = []
+    start_at = 0
+    while True:
+        r = requests.get(
+            f"{JIRA_BASE_URL}/rest/api/3/issue/{key}/changelog",
+            headers=jira_headers(),
+            params={"startAt": start_at, "maxResults": 100},
+            timeout=TIMEOUT,
+        )
+        if r.status_code != 200:
+            break
+        data = r.json()
+        vals = data.get("values", [])
+        histories.extend(vals)
+        total = data.get("total")
+        start_at += len(vals)
+        if data.get("isLast") or not vals or (total is not None and start_at >= total):
+            break
+    return histories
+
+
 # ---------------------------------------------------------------------------
 # Periodo: semana anterior (segunda a domingo)
 # ---------------------------------------------------------------------------
@@ -252,6 +279,35 @@ def collect(start: date, end_excl: date) -> dict:
         round(sum(cycle_secs) / len(cycle_secs) / 86400, 1) if cycle_secs else None
     )
     m["resolved_total"] = len(resolved)
+
+    # --- Metricas de QA ---
+    # Subtasks abertas (qualquer tipo de subtarefa, ainda nao concluidas)
+    m["open_subtasks"] = count_issues(
+        "issuetype in subTaskIssueTypes() AND statusCategory != Done"
+    )
+
+    # QAs que "passaram demandas pra frente": quem moveu o status para um dos
+    # status de QA (release / AG. VERSÃO) dentro da semana. Atribuido pelo autor
+    # da transicao no changelog.
+    qa_status = [st.strip() for st in JIRA_QA_STATUSES.split(",") if st.strip()]
+    qa_targets = set(qa_status)
+    status_list = ",".join(f'"{st}"' for st in qa_status)
+    candidates = search_issues(
+        f'status changed to ({status_list}) AFTER "{s}" BEFORE "{e}"',
+        fields=["key"],
+    )
+    qa_forwarded = {}
+    for it in candidates:
+        for hist in get_changelog(it["key"]):
+            created = hist.get("created", "")
+            if not (s <= created[:10] < e):
+                continue
+            for item in hist.get("items", []):
+                if item.get("field") == "status" and item.get("toString") in qa_targets:
+                    who = (hist.get("author") or {}).get("displayName") or "Desconhecido"
+                    qa_forwarded[who] = qa_forwarded.get(who, 0) + 1
+    m["qa_forwarded"] = qa_forwarded
+    m["qa_forwarded_total"] = sum(qa_forwarded.values())
     return m
 
 
@@ -312,6 +368,11 @@ def build_payload(m: dict, label: str) -> dict:
             "inline": True,
         },
         {
+            "name": "\U0001F9EA Subtasks abertas",
+            "value": f"**{m['open_subtasks']}** em aberto",
+            "inline": True,
+        },
+        {
             "name": f"\U0001F4CB Backlog de erros em aberto ({m['bug_backlog_total']})",
             "value": fmt_priority(m["bug_backlog_by_priority"]),
             "inline": False,
@@ -319,6 +380,14 @@ def build_payload(m: dict, label: str) -> dict:
         {
             "name": "\U0001F3C6 Vazao por pessoa (top 5)",
             "value": fmt_top(m["throughput_by_assignee"]),
+            "inline": False,
+        },
+        {
+            "name": (
+                "\U0001F9D1‍\U0001F52C QAs — demandas liberadas "
+                f"({m['qa_forwarded_total']}) [release / AG. VERSÃO]"
+            ),
+            "value": fmt_top(m["qa_forwarded"]),
             "inline": False,
         },
     ]

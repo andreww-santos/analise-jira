@@ -11,6 +11,10 @@ consulta a API do Jira Cloud, calcula os principais indicadores da **semana ante
 - 📋 **Backlog atual de bugs em aberto**, quebrado por prioridade
 - 🏆 **Vazão (throughput) por pessoa** (top 5)
 - ⏱️ **Tempo médio de resolução** das issues resolvidas na semana
+- 🧪 **Subtasks abertas** (foto atual)
+- 🧑‍🔬 **QAs — demandas liberadas na semana**: quem moveu issues para os status
+  de QA (`release` / `AG. VERSÃO`) após testar, atribuído pelo autor da transição
+  no histórico (changelog)
 
 Por padrão cobre **todos os projetos**. Dá para restringir via `JIRA_PROJECTS`
 ou aplicar um filtro extra com `JIRA_EXTRA_JQL`.
@@ -52,6 +56,8 @@ Crie os seguintes secrets:
 | `DISCORD_WEBHOOK_URL` | ✅ | `https://discord.com/api/webhooks/...` |
 | `JIRA_PROJECTS` | opcional | `ABC,DEF` (vazio = todos) |
 | `JIRA_EXTRA_JQL` | opcional | `labels != interno` |
+| `JIRA_BUG_TYPES` | opcional | `Erro` (padrão) |
+| `JIRA_QA_STATUSES` | opcional | `release,AG. VERSÃO` (padrão) |
 
 ### 5. Testar sem esperar segunda-feira
 Na aba **Actions** do repositório → workflow **"Relatorio semanal do Jira no Discord"**
