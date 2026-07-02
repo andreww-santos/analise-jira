@@ -296,18 +296,24 @@ def collect(start: date, end_excl: date) -> dict:
         f'status changed to ({status_list}) AFTER "{s}" BEFORE "{e}"',
         fields=["key"],
     )
-    qa_forwarded = {}
+    # Conta demandas UNICAS por QA: cada issue conta 1x por QA, mesmo que tenha
+    # sido liberada varias vezes na semana (ex: voltou e foi liberada de novo).
+    qa_pairs = set()  # {(qa, issue_key)}
     for it in candidates:
-        for hist in get_changelog(it["key"]):
+        key = it["key"]
+        for hist in get_changelog(key):
             created = hist.get("created", "")
             if not (s <= created[:10] < e):
                 continue
             for item in hist.get("items", []):
                 if item.get("field") == "status" and item.get("toString") in qa_targets:
                     who = (hist.get("author") or {}).get("displayName") or "Desconhecido"
-                    qa_forwarded[who] = qa_forwarded.get(who, 0) + 1
+                    qa_pairs.add((who, key))
+    qa_forwarded = {}
+    for who, _key in qa_pairs:
+        qa_forwarded[who] = qa_forwarded.get(who, 0) + 1
     m["qa_forwarded"] = qa_forwarded
-    m["qa_forwarded_total"] = sum(qa_forwarded.values())
+    m["qa_forwarded_total"] = len({key for _who, key in qa_pairs})
     return m
 
 
