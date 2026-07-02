@@ -20,6 +20,13 @@ from datetime import date, datetime, timedelta, timezone
 
 import requests
 
+# Garante saida em UTF-8 (evita UnicodeEncodeError no console do Windows/cp1252)
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
+
 # ---------------------------------------------------------------------------
 # Configuracao (via variaveis de ambiente / GitHub Secrets)
 # ---------------------------------------------------------------------------
@@ -32,6 +39,10 @@ DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
 JIRA_PROJECTS = os.environ.get("JIRA_PROJECTS", "").strip()   # ex: "ABC,DEF"
 JIRA_EXTRA_JQL = os.environ.get("JIRA_EXTRA_JQL", "").strip()  # ex: "labels != interno"
 TIMEZONE_LABEL = os.environ.get("TIMEZONE_LABEL", "America/Sao_Paulo")
+
+# Tipo(s) de issue que representam "erro/bug" no seu Jira (separados por virgula).
+# Padrao "Erro" (nomenclatura usada nos projetos da Bruning).
+JIRA_BUG_TYPES = os.environ.get("JIRA_BUG_TYPES", "").strip() or "Erro"
 
 TIMEOUT = 30
 
@@ -82,6 +93,14 @@ def scope_clause() -> str:
 def with_scope(jql: str) -> str:
     scope = scope_clause()
     return f"({jql}) AND {scope}" if scope else jql
+
+
+def bug_type_clause() -> str:
+    """Clausula JQL para o(s) tipo(s) de erro/bug. Ex: issuetype in ("Erro")."""
+    tipos = ",".join(
+        f'"{t.strip()}"' for t in JIRA_BUG_TYPES.split(",") if t.strip()
+    )
+    return f"issuetype in ({tipos})"
 
 
 def count_issues(jql: str) -> int:
@@ -189,19 +208,21 @@ def collect(start: date, end_excl: date) -> dict:
         f'resolutiondate >= "{s}" AND resolutiondate < "{e}"'
     )
 
-    # Bugs criados na semana
+    bug = bug_type_clause()
+
+    # Erros criados na semana
     m["bugs_created"] = count_issues(
-        f'issuetype = Bug AND created >= "{s}" AND created < "{e}"'
+        f'{bug} AND created >= "{s}" AND created < "{e}"'
     )
 
-    # Bugs resolvidos/entregues na semana
+    # Erros resolvidos/entregues na semana
     m["bugs_resolved"] = count_issues(
-        f'issuetype = Bug AND resolutiondate >= "{s}" AND resolutiondate < "{e}"'
+        f'{bug} AND resolutiondate >= "{s}" AND resolutiondate < "{e}"'
     )
 
-    # Backlog atual de bugs em aberto, por prioridade
+    # Backlog atual de erros em aberto, por prioridade
     open_bugs = search_issues(
-        "issuetype = Bug AND statusCategory != Done",
+        f"{bug} AND statusCategory != Done",
         fields=["priority"],
     )
     by_priority = {}
@@ -239,8 +260,13 @@ def collect(start: date, end_excl: date) -> dict:
 # ---------------------------------------------------------------------------
 def fmt_priority(by_priority: dict) -> str:
     if not by_priority:
-        return "Nenhum bug em aberto \U0001F389"
-    order = ["Highest", "Blocker", "Critical", "High", "Medium", "Low", "Lowest"]
+        return "Nenhum erro em aberto \U0001F389"
+    order = [
+        "Urgente", "Highest", "Blocker", "Critical",
+        "Alta", "High",
+        "Média", "Media", "Medium",
+        "Baixa", "Low", "Lowest",
+    ]
     def rank(name):
         return order.index(name) if name in order else len(order)
     linhas = [
@@ -272,10 +298,10 @@ def build_payload(m: dict, label: str) -> dict:
             "inline": True,
         },
         {
-            "name": "\U0001F41B Bugs (criados vs. resolvidos)",
+            "name": "\U0001F41B Erros (criados vs. resolvidos)",
             "value": (
                 f"Criados: **{m['bugs_created']}**\n"
-                f"Resolvidos: **{m['bugs_resolved']}**\n"
+                f"Entregues: **{m['bugs_resolved']}**\n"
                 f"Saldo: **{saldo_txt}** {tendencia}"
             ),
             "inline": True,
@@ -286,7 +312,7 @@ def build_payload(m: dict, label: str) -> dict:
             "inline": True,
         },
         {
-            "name": f"\U0001F4CB Backlog de bugs em aberto ({m['bug_backlog_total']})",
+            "name": f"\U0001F4CB Backlog de erros em aberto ({m['bug_backlog_total']})",
             "value": fmt_priority(m["bug_backlog_by_priority"]),
             "inline": False,
         },

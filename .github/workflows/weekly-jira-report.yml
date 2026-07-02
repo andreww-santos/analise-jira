@@ -30,4 +30,6 @@ jobs:
           # Opcionais (deixe em branco para cobrir todos os projetos):
           JIRA_PROJECTS: ${{ secrets.JIRA_PROJECTS }}
           JIRA_EXTRA_JQL: ${{ secrets.JIRA_EXTRA_JQL }}
+          # Tipo(s) de issue de erro/bug (padrao "Erro" se o secret nao existir):
+          JIRA_BUG_TYPES: ${{ secrets.JIRA_BUG_TYPES }}
         run: python jira_discord_report.py
