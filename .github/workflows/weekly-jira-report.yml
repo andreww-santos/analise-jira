@@ -1,0 +1,33 @@
+name: Relatorio semanal do Jira no Discord
+
+on:
+  schedule:
+    # 12:00 UTC = 09:00 America/Sao_Paulo (BRT, UTC-3). Toda segunda-feira.
+    - cron: "0 12 * * 1"
+  workflow_dispatch: {}   # permite disparar manualmente pela aba Actions
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Gerar e enviar relatorio
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          # Opcionais (deixe em branco para cobrir todos os projetos):
+          JIRA_PROJECTS: ${{ secrets.JIRA_PROJECTS }}
+          JIRA_EXTRA_JQL: ${{ secrets.JIRA_EXTRA_JQL }}
+        run: python jira_discord_report.py
